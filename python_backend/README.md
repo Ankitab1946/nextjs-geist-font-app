@@ -27,6 +27,8 @@ A Python-based framework for comparing columns using fuzzy logic, supporting Exc
 pip install -r requirements.txt
 ```
 
+The application uses `rapidfuzz` for efficient fuzzy string matching, which is easier to install and more performant than alternatives.
+
 3. Install SQL Server ODBC Driver if not already installed:
    - [Download SQL Server ODBC Driver](https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
 
