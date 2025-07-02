@@ -1,10 +1,13 @@
 import streamlit as st
 import pandas as pd
 import pyodbc
-from fuzzy_matcher import FuzzyMatcher
-import tempfile
+import sys
 import os
+import tempfile
 from datetime import datetime
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from python_backend.fuzzy_matcher import FuzzyMatcher
 
 def get_sql_server_connection():
     """
