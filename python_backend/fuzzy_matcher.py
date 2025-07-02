@@ -1,6 +1,6 @@
 import pandas as pd
 import dask.dataframe as dd
-from thefuzz import fuzz
+from rapidfuzz import fuzz
 from typing import Dict, List, Tuple
 import numpy as np
 from synonym_handler import SynonymHandler
