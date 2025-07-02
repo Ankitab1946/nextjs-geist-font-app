@@ -35,7 +35,8 @@ python test_matcher.py
 
 :: Start Streamlit app
 echo Starting Streamlit app...
-streamlit run streamlit_app.py
+set PYTHONPATH=%PYTHONPATH%;%CD%
+streamlit run --server.port 8000 python_backend/streamlit_app.py
 
 :: Note: The script will keep running until the Streamlit app is closed
 :: The virtual environment will remain active until you close the window
