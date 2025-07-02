@@ -1,6 +1,6 @@
 import pandas as pd
 import dask.dataframe as dd
-from rapidfuzz import fuzz
+from fuzzywuzzy import fuzz
 from typing import Dict, List, Tuple
 import numpy as np
 from synonym_handler import SynonymHandler
@@ -39,10 +39,6 @@ class FuzzyMatcher:
         Perform two-way matching between source and target columns.
         Returns both matches and mismatches with confidence levels.
         """
-        # Convert to Dask DataFrames for better performance with large datasets
-        source_ddf = dd.from_pandas(source_df, npartitions=4)
-        target_ddf = dd.from_pandas(target_df, npartitions=4)
-
         # Initialize results
         matches = []
         source_mismatches = []
