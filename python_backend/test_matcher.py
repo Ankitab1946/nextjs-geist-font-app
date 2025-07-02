@@ -1,5 +1,5 @@
 import pandas as pd
-from fuzzy_matcher import FuzzyMatcher
+from .fuzzy_matcher import FuzzyMatcher
 import tempfile
 import os
 
