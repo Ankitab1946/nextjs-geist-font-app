@@ -140,16 +140,12 @@ with col1:
         if source_file:
             try:
                 # Get list of worksheets
-                try:
-                    excel_file = pd.ExcelFile(source_file)
-                    worksheets = excel_file.sheet_names
-                except zipfile.BadZipFile:
-                    st.error("The uploaded file is not a valid Excel file. Please ensure you're uploading a valid .xlsx or .xls file.")
-                    source_df = None
-                    source_columns = []
-                    worksheets = []
+                excel_file = pd.ExcelFile(source_file)
+                worksheets = excel_file.sheet_names
                 if not worksheets:
                     st.error("No worksheets found in the source Excel file")
+                    source_df = None
+                    source_columns = []
                 else:
                     # Let user select worksheet
                     selected_worksheet = st.selectbox(
@@ -163,16 +159,22 @@ with col1:
                         source_df = pd.read_excel(source_file, sheet_name=selected_worksheet)
                         st.session_state.source_df = source_df
                         source_columns = source_df.columns.tolist()
+                        st.session_state.source_column = st.selectbox(
+                            "Select Source Column",
+                            options=source_columns
+                        )
                     except Exception as e:
                         st.error(f"Error reading worksheet: {str(e)}")
                         source_df = None
                         source_columns = []
-                    st.session_state.source_column = st.selectbox(
-                        "Select Source Column",
-                        options=source_columns
-                    )
+            except zipfile.BadZipFile:
+                st.error("The uploaded file is not a valid Excel file. Please ensure you're uploading a valid .xlsx or .xls file.")
+                source_df = None
+                source_columns = []
             except Exception as e:
                 st.error(f"Error reading source Excel file: {str(e)}")
+                source_df = None
+                source_columns = []
     else:  # SQL Server
         st.session_state.server = st.text_input("SQL Server Name")
         st.session_state.database = st.text_input("Database Name")
@@ -206,6 +208,8 @@ with col2:
             worksheets = [ws for ws in excel_file.sheet_names if ws != st.session_state.get('source_worksheet')]
             if not worksheets:
                 st.error("No additional worksheets found in the Excel file")
+                target_df = None
+                target_columns = []
             else:
                 # Let user select worksheet
                 selected_worksheet = st.selectbox(
@@ -215,31 +219,34 @@ with col2:
                 )
                 
                 # Read the selected worksheet
-                target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
-                st.session_state.target_df = target_df
-                target_columns = target_df.columns.tolist()
-                st.session_state.target_column = st.selectbox(
-                    "Select Target Column",
-                    options=target_columns
-                )
+                try:
+                    target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
+                    st.session_state.target_df = target_df
+                    target_columns = target_df.columns.tolist()
+                    st.session_state.target_column = st.selectbox(
+                        "Select Target Column",
+                        options=target_columns
+                    )
+                except Exception as e:
+                    st.error(f"Error reading worksheet: {str(e)}")
+                    target_df = None
+                    target_columns = []
         except Exception as e:
             st.error(f"Error reading target worksheet: {str(e)}")
+            target_df = None
+            target_columns = []
     
     elif target_type == "Excel File":
         target_file = st.file_uploader("Upload Target Excel File", type=['xlsx', 'xls'])
         if target_file:
             try:
                 # Get list of worksheets
-                try:
-                    excel_file = pd.ExcelFile(target_file)
-                    worksheets = excel_file.sheet_names
-                except zipfile.BadZipFile:
-                    st.error("The uploaded file is not a valid Excel file. Please ensure you're uploading a valid .xlsx or .xls file.")
-                    target_df = None
-                    target_columns = []
-                    worksheets = []
+                excel_file = pd.ExcelFile(target_file)
+                worksheets = excel_file.sheet_names
                 if not worksheets:
                     st.error("No worksheets found in the target Excel file")
+                    target_df = None
+                    target_columns = []
                 else:
                     # Let user select worksheet
                     selected_worksheet = st.selectbox(
@@ -253,16 +260,22 @@ with col2:
                         target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
                         st.session_state.target_df = target_df
                         target_columns = target_df.columns.tolist()
+                        st.session_state.target_column = st.selectbox(
+                            "Select Target Column",
+                            options=target_columns
+                        )
                     except Exception as e:
                         st.error(f"Error reading worksheet: {str(e)}")
                         target_df = None
                         target_columns = []
-                    st.session_state.target_column = st.selectbox(
-                        "Select Target Column",
-                        options=target_columns
-                    )
+            except zipfile.BadZipFile:
+                st.error("The uploaded file is not a valid Excel file. Please ensure you're uploading a valid .xlsx or .xls file.")
+                target_df = None
+                target_columns = []
             except Exception as e:
                 st.error(f"Error reading target Excel file: {str(e)}")
+                target_df = None
+                target_columns = []
     
     else:  # SQL Server
         if 'server' not in st.session_state:
@@ -291,6 +304,10 @@ if st.button("Run Matching"):
             # Update matcher threshold
             st.session_state.matcher.threshold = threshold
             
+            success = True
+            results = None
+            results_df = None
+
             try:
                 # Perform matching
                 results = st.session_state.matcher.match_columns(
@@ -302,52 +319,54 @@ if st.button("Run Matching"):
             except Exception as e:
                 st.error(f"Error during matching process: {str(e)}")
                 st.error("Please ensure both source and target files are valid Excel files.")
-                return
-            
-            try:
-                # Format results
-                results_df = st.session_state.matcher.format_results_for_export(results)
-            except Exception as e:
-                st.error(f"Error formatting results: {str(e)}")
-                st.error("There was an issue processing the matching results.")
-                return
-            
-            # Display results
-            st.header("Matching Results")
-            
-            # Display summary metrics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Matches", len(results["matches"]))
-            with col2:
-                st.metric("Source Mismatches", len(results["source_mismatches"]))
-            with col3:
-                st.metric("Target Mismatches", len(results["target_mismatches"]))
-            
-            # Display detailed results
-            st.dataframe(results_df)
-            
-            # Save and provide download link
-            filename = save_results(results_df)
-            
-            if filename:
+                success = False
+
+            if success and results is not None:
                 try:
-                    with open(filename, "rb") as file:
-                        st.download_button(
-                            label="Download Results",
-                            data=file,
-                            file_name=f"fuzzy_matching_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
+                    # Format results
+                    results_df = st.session_state.matcher.format_results_for_export(results)
                 except Exception as e:
-                    st.error(f"Could not prepare the download: {str(e)}")
-                finally:
+                    st.error(f"Error formatting results: {str(e)}")
+                    st.error("There was an issue processing the matching results.")
+                    success = False
+
+            if success and results_df is not None:
+                # Display results
+                st.header("Matching Results")
+                
+                # Display summary metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Matches", len(results["matches"]))
+                with col2:
+                    st.metric("Source Mismatches", len(results["source_mismatches"]))
+                with col3:
+                    st.metric("Target Mismatches", len(results["target_mismatches"]))
+                
+                # Display detailed results
+                st.dataframe(results_df)
+                
+                # Save and provide download link
+                filename = save_results(results_df)
+                
+                if filename:
                     try:
-                        os.remove(filename)
-                    except Exception as cleanup_err:
-                        st.error(f"Error cleaning up temporary file: {str(cleanup_err)}")
-            else:
-                st.error("Results file could not be generated. Please try again.")
+                        with open(filename, "rb") as file:
+                            st.download_button(
+                                label="Download Results",
+                                data=file,
+                                file_name=f"fuzzy_matching_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
+                    except Exception as e:
+                        st.error(f"Could not prepare the download: {str(e)}")
+                    finally:
+                        try:
+                            os.remove(filename)
+                        except Exception as cleanup_err:
+                            st.error(f"Error cleaning up temporary file: {str(cleanup_err)}")
+                else:
+                    st.error("Results file could not be generated. Please try again.")
     else:
         st.error("Please select both source and target data before running the matching process.")
 
