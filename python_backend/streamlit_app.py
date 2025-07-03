@@ -39,33 +39,40 @@ def get_table_columns(conn, table_name):
 
 def save_results(results_df):
     """Save results to Excel file and provide download link"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"fuzzy_matching_results_{timestamp}.xlsx"
-    
-    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-        # Write main results
-        results_df.to_excel(writer, sheet_name='Matching Results', index=False)
+    try:
+        # Use a temporary file with .xlsx suffix
+        temp_file = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        temp_file.close()  # Close the file so ExcelWriter can write to it
+        temp_filename = temp_file.name
+
+        with pd.ExcelWriter(temp_filename, engine='openpyxl', mode='w') as writer:
+            # Write main results
+            results_df.to_excel(writer, sheet_name='Matching Results', index=False)
+            
+            # Add summary sheet
+            summary_data = {
+                'Metric': [
+                    'Total Records Processed',
+                    'Successful Matches',
+                    'Source Mismatches',
+                    'Target Mismatches',
+                    'Average Confidence Score'
+                ],
+                'Value': [
+                    len(results_df),
+                    len(results_df[results_df['Type'] == 'Match']),
+                    len(results_df[results_df['Type'] == 'Source Mismatch']),
+                    len(results_df[results_df['Type'] == 'Target Mismatch']),
+                    f"{results_df['Confidence'].str.rstrip('%').astype(float).mean():.2f}%"
+                ]
+            }
+            pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
         
-        # Add summary sheet
-        summary_data = {
-            'Metric': [
-                'Total Records Processed',
-                'Successful Matches',
-                'Source Mismatches',
-                'Target Mismatches',
-                'Average Confidence Score'
-            ],
-            'Value': [
-                len(results_df),
-                len(results_df[results_df['Type'] == 'Match']),
-                len(results_df[results_df['Type'] == 'Source Mismatch']),
-                len(results_df[results_df['Type'] == 'Target Mismatch']),
-                f"{results_df['Confidence'].str.rstrip('%').astype(float).mean():.2f}%"
-            ]
-        }
-        pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
-        
-    return filename
+        return temp_filename
+
+    except Exception as e:
+        st.error(f"An error occurred while saving the results: {str(e)}")
+        return None
 
 # Set page config
 st.set_page_config(
@@ -120,13 +127,17 @@ with col1:
     if source_type == "Excel File":
         source_file = st.file_uploader("Upload Source Excel File", type=['xlsx', 'xls'])
         if source_file:
-            source_df = pd.read_excel(source_file)
-            st.session_state.source_df = source_df
-            source_columns = source_df.columns.tolist()
-            st.session_state.source_column = st.selectbox(
-                "Select Source Column",
-                options=source_columns
-            )
+            try:
+                source_df = pd.read_excel(source_file)
+                st.session_state.source_df = source_df
+                source_columns = source_df.columns.tolist()
+                st.session_state.source_column = st.selectbox(
+                    "Select Source Column",
+                    options=source_columns
+                )
+            except Exception as e:
+                st.error(f"Error reading source Excel file: {str(e)}")
+                return
     else:  # SQL Server
         st.session_state.server = st.text_input("SQL Server Name")
         st.session_state.database = st.text_input("Database Name")
@@ -152,13 +163,17 @@ with col2:
     if target_type == "Excel File":
         target_file = st.file_uploader("Upload Target Excel File", type=['xlsx', 'xls'])
         if target_file:
-            target_df = pd.read_excel(target_file)
-            st.session_state.target_df = target_df
-            target_columns = target_df.columns.tolist()
-            st.session_state.target_column = st.selectbox(
-                "Select Target Column",
-                options=target_columns
-            )
+            try:
+                target_df = pd.read_excel(target_file)
+                st.session_state.target_df = target_df
+                target_columns = target_df.columns.tolist()
+                st.session_state.target_column = st.selectbox(
+                    "Select Target Column",
+                    options=target_columns
+                )
+            except Exception as e:
+                st.error(f"Error reading target Excel file: {str(e)}")
+                return
     else:  # SQL Server
         if 'server' not in st.session_state:
             st.session_state.server = st.text_input("SQL Server Name ", key="target_server")
@@ -213,16 +228,25 @@ if st.button("Run Matching"):
             
             # Save and provide download link
             filename = save_results(results_df)
-            with open(filename, "rb") as file:
-                st.download_button(
-                    label="Download Results",
-                    data=file,
-                    file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
             
-            # Cleanup temporary file
-            os.remove(filename)
+            if filename:
+                try:
+                    with open(filename, "rb") as file:
+                        st.download_button(
+                            label="Download Results",
+                            data=file,
+                            file_name=f"fuzzy_matching_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                except Exception as e:
+                    st.error(f"Could not prepare the download: {str(e)}")
+                finally:
+                    try:
+                        os.remove(filename)
+                    except Exception as cleanup_err:
+                        st.error(f"Error cleaning up temporary file: {str(cleanup_err)}")
+            else:
+                st.error("Results file could not be generated. Please try again.")
     else:
         st.error("Please select both source and target data before running the matching process.")
 
