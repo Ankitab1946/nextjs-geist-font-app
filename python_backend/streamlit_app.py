@@ -376,11 +376,73 @@ if st.button("Run Matching"):
                 st.write(f"Selected column: {st.session_state.target_column}")
                 
                 st.write("\nStarting matching process...")
-                # Create fresh copies to avoid modifying originals
-                source_copy = source_df.copy()
-                target_copy = target_df.copy()
+                st.write(f"Source DataFrame shape: {source_df.shape}")
+                st.write(f"Target DataFrame shape: {target_df.shape}")
                 
                 try:
+                    # Create fresh copies and ensure they're proper DataFrames
+                    st.write("Preparing data for matching...")
+                    
+                    # First, verify the data types
+                    st.write("Validating data types...")
+                    if not isinstance(source_df, (pd.DataFrame, dict, list)):
+                        raise ValueError("Source data is not in a valid format for conversion to DataFrame")
+                    if not isinstance(target_df, (pd.DataFrame, dict, list)):
+                        raise ValueError("Target data is not in a valid format for conversion to DataFrame")
+                    
+                    # Convert to DataFrames if needed
+                    if not isinstance(source_df, pd.DataFrame):
+                        st.write("Converting source data to DataFrame...")
+                        source_df = pd.DataFrame(source_df)
+                    if not isinstance(target_df, pd.DataFrame):
+                        st.write("Converting target data to DataFrame...")
+                        target_df = pd.DataFrame(target_df)
+                    
+                    # Create copies with validation
+                    st.write("Creating working copies of data...")
+                    try:
+                        source_copy = source_df.copy()
+                        target_copy = target_df.copy()
+                    except Exception as e:
+                        raise ValueError(f"Failed to create copies of DataFrames: {str(e)}")
+                    
+                    st.write("✓ Data preparation completed successfully")
+                    
+                    # Verify the columns exist in the copies
+                    if st.session_state.source_column not in source_copy.columns:
+                        raise ValueError(f"Source column '{st.session_state.source_column}' not found in prepared data")
+                    if st.session_state.target_column not in target_copy.columns:
+                        raise ValueError(f"Target column '{st.session_state.target_column}' not found in prepared data")
+                    
+                    # Verify the data in the columns
+                    st.write("Verifying column data...")
+                    source_col_data = source_copy[st.session_state.source_column]
+                    target_col_data = target_copy[st.session_state.target_column]
+                    
+                    # Check for empty columns
+                    if source_col_data.empty:
+                        raise ValueError("Source column is empty")
+                    if target_col_data.empty:
+                        raise ValueError("Target column is empty")
+                    
+                    # Check for null values
+                    null_in_source = source_col_data.isnull().any()
+                    null_in_target = target_col_data.isnull().any()
+                    
+                    if null_in_source:
+                        st.warning("Source column contains null values. They will be treated as empty strings.")
+                    if null_in_target:
+                        st.warning("Target column contains null values. They will be treated as empty strings.")
+                    
+                    # Convert all values to strings for matching
+                    st.write("Converting data for matching...")
+                    try:
+                        source_copy[st.session_state.source_column] = source_copy[st.session_state.source_column].fillna('').astype(str)
+                        target_copy[st.session_state.target_column] = target_copy[st.session_state.target_column].fillna('').astype(str)
+                        st.write("✓ Data conversion completed successfully")
+                    except Exception as e:
+                        raise ValueError(f"Failed to convert data to strings: {str(e)}")
+                    
                     # Perform matching
                     st.write("Running matching algorithm...")
                     results = st.session_state.matcher.match_columns(
@@ -396,13 +458,20 @@ if st.button("Run Matching"):
                     success = False
             except ValueError as ve:
                 st.error(f"Validation Error: {str(ve)}")
+                st.error("Please ensure your column selections are correct.")
                 success = False
             except pd.errors.EmptyDataError:
                 st.error("One or both DataFrames are empty. Please check your data.")
+                st.error("Make sure both source and target worksheets contain data.")
+                success = False
+            except AttributeError as ae:
+                st.error(f"Data structure error: {str(ae)}")
+                st.error("Please try re-uploading your Excel files.")
                 success = False
             except Exception as e:
-                st.error(f"Unexpected error: {str(e)}")
-                st.error("Please ensure your data is valid and try again.")
+                st.error(f"Unexpected error during matching: {str(e)}")
+                st.error("Please ensure your Excel files are valid and not corrupted.")
+                st.error("Try saving your Excel files again and re-upload them.")
                 success = False
 
             if success and results is not None:
