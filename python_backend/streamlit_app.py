@@ -89,8 +89,16 @@ if 'matcher' not in st.session_state:
 st.title("🔍 Fuzzy Column Matcher")
 st.markdown("""
 This tool helps you match columns between Excel files and SQL Server tables using fuzzy logic.
-It supports synonyms and provides detailed matching results with confidence levels.
+It supports:
+- Matching between different Excel files
+- Matching between worksheets in the same Excel file
+- Matching between Excel files and SQL Server tables
+- Synonym-based matching
+- Detailed matching results with confidence levels
 """)
+
+if source_type == "Excel File":
+    st.info("💡 Tip: To match columns between worksheets in the same Excel file, select 'Same Excel File' as the Target Type after uploading your source Excel file.")
 
 # Sidebar for configuration
 with st.sidebar:
@@ -105,7 +113,7 @@ with st.sidebar:
     # Target type selection
     target_type = st.radio(
         "Select Target Type",
-        ["Excel File", "SQL Server"]
+        ["Excel File", "SQL Server", "Same Excel File"]
     )
     
     # Matching threshold
@@ -128,7 +136,26 @@ with col1:
         source_file = st.file_uploader("Upload Source Excel File", type=['xlsx', 'xls'])
         if source_file:
             try:
-                source_df = pd.read_excel(source_file)
+                # Get list of worksheets
+                try:
+                    excel_file = pd.ExcelFile(source_file)
+                    worksheets = excel_file.sheet_names
+                    if not worksheets:  # If no worksheets found
+                        st.error("No worksheets found in the source Excel file")
+                        return
+                except Exception as e:
+                    st.error(f"Error reading worksheets from source Excel file: {str(e)}")
+                    return
+                
+                # Let user select worksheet
+                selected_worksheet = st.selectbox(
+                    "Select Source Worksheet",
+                    options=worksheets,
+                    key="source_worksheet"
+                )
+                
+                # Read the selected worksheet
+                source_df = pd.read_excel(source_file, sheet_name=selected_worksheet)
                 st.session_state.source_df = source_df
                 source_columns = source_df.columns.tolist()
                 st.session_state.source_column = st.selectbox(
@@ -161,11 +188,60 @@ with col1:
 with col2:
     st.header("Target Data")
     
-    if target_type == "Excel File":
+    if target_type == "Same Excel File" and source_file:
+        # Use the same Excel file as source
+        target_file = source_file
+        try:
+            # Get list of worksheets (excluding the source worksheet)
+            excel_file = pd.ExcelFile(target_file)
+            worksheets = [ws for ws in excel_file.sheet_names if ws != st.session_state.get('source_worksheet')]
+            if not worksheets:
+                st.error("No additional worksheets found in the Excel file")
+                return
+            
+            # Let user select worksheet
+            selected_worksheet = st.selectbox(
+                "Select Target Worksheet",
+                options=worksheets,
+                key="target_worksheet"
+            )
+            
+            # Read the selected worksheet
+            target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
+            st.session_state.target_df = target_df
+            target_columns = target_df.columns.tolist()
+            st.session_state.target_column = st.selectbox(
+                "Select Target Column",
+                options=target_columns
+            )
+        except Exception as e:
+            st.error(f"Error reading target worksheet: {str(e)}")
+            target_df = None
+            target_columns = []
+    elif target_type == "Excel File":
         target_file = st.file_uploader("Upload Target Excel File", type=['xlsx', 'xls'])
         if target_file:
             try:
-                target_df = pd.read_excel(target_file)
+                # Get list of worksheets
+                try:
+                    excel_file = pd.ExcelFile(target_file)
+                    worksheets = excel_file.sheet_names
+                    if not worksheets:  # If no worksheets found
+                        st.error("No worksheets found in the target Excel file")
+                        return
+                except Exception as e:
+                    st.error(f"Error reading worksheets from target Excel file: {str(e)}")
+                    return
+                
+                # Let user select worksheet
+                selected_worksheet = st.selectbox(
+                    "Select Target Worksheet",
+                    options=worksheets,
+                    key="target_worksheet"
+                )
+                
+                # Read the selected worksheet
+                target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
                 st.session_state.target_df = target_df
                 target_columns = target_df.columns.tolist()
                 st.session_state.target_column = st.selectbox(
