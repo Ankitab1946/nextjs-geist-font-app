@@ -137,7 +137,8 @@ with col1:
                 )
             except Exception as e:
                 st.error(f"Error reading source Excel file: {str(e)}")
-                return
+                source_df = None
+                source_columns = []
     else:  # SQL Server
         st.session_state.server = st.text_input("SQL Server Name")
         st.session_state.database = st.text_input("Database Name")
@@ -173,7 +174,8 @@ with col2:
                 )
             except Exception as e:
                 st.error(f"Error reading target Excel file: {str(e)}")
-                return
+                target_df = None
+                target_columns = []
     else:  # SQL Server
         if 'server' not in st.session_state:
             st.session_state.server = st.text_input("SQL Server Name ", key="target_server")
@@ -195,7 +197,8 @@ with col2:
 
 # Process matching
 if st.button("Run Matching"):
-    if hasattr(st.session_state, 'source_df') and hasattr(st.session_state, 'target_df'):
+    if (hasattr(st.session_state, 'source_df') and hasattr(st.session_state, 'target_df') and 
+        st.session_state.source_df is not None and st.session_state.target_df is not None):
         with st.spinner("Processing matches..."):
             # Update matcher threshold
             st.session_state.matcher.threshold = threshold
