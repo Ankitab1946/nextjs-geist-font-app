@@ -4,6 +4,7 @@ import pyodbc
 import sys
 import os
 import tempfile
+import zipfile
 from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -40,12 +41,12 @@ def get_table_columns(conn, table_name):
 def save_results(results_df):
     """Save results to Excel file and provide download link"""
     try:
-        # Use a temporary file with .xlsx suffix
-        temp_file = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
-        temp_file.close()  # Close the file so ExcelWriter can write to it
-        temp_filename = temp_file.name
-
-        with pd.ExcelWriter(temp_filename, engine='openpyxl', mode='w') as writer:
+        # Create a unique filename in the current directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"fuzzy_matching_results_{timestamp}.xlsx"
+        
+        # Write results to Excel file
+        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
             # Write main results
             results_df.to_excel(writer, sheet_name='Matching Results', index=False)
             
@@ -68,7 +69,7 @@ def save_results(results_df):
             }
             pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
         
-        return temp_filename
+        return filename
 
     except Exception as e:
         st.error(f"An error occurred while saving the results: {str(e)}")
@@ -139,8 +140,14 @@ with col1:
         if source_file:
             try:
                 # Get list of worksheets
-                excel_file = pd.ExcelFile(source_file)
-                worksheets = excel_file.sheet_names
+                try:
+                    excel_file = pd.ExcelFile(source_file)
+                    worksheets = excel_file.sheet_names
+                except zipfile.BadZipFile:
+                    st.error("The uploaded file is not a valid Excel file. Please ensure you're uploading a valid .xlsx or .xls file.")
+                    source_df = None
+                    source_columns = []
+                    worksheets = []
                 if not worksheets:
                     st.error("No worksheets found in the source Excel file")
                 else:
@@ -152,9 +159,14 @@ with col1:
                     )
                     
                     # Read the selected worksheet
-                    source_df = pd.read_excel(source_file, sheet_name=selected_worksheet)
-                    st.session_state.source_df = source_df
-                    source_columns = source_df.columns.tolist()
+                    try:
+                        source_df = pd.read_excel(source_file, sheet_name=selected_worksheet)
+                        st.session_state.source_df = source_df
+                        source_columns = source_df.columns.tolist()
+                    except Exception as e:
+                        st.error(f"Error reading worksheet: {str(e)}")
+                        source_df = None
+                        source_columns = []
                     st.session_state.source_column = st.selectbox(
                         "Select Source Column",
                         options=source_columns
@@ -218,8 +230,14 @@ with col2:
         if target_file:
             try:
                 # Get list of worksheets
-                excel_file = pd.ExcelFile(target_file)
-                worksheets = excel_file.sheet_names
+                try:
+                    excel_file = pd.ExcelFile(target_file)
+                    worksheets = excel_file.sheet_names
+                except zipfile.BadZipFile:
+                    st.error("The uploaded file is not a valid Excel file. Please ensure you're uploading a valid .xlsx or .xls file.")
+                    target_df = None
+                    target_columns = []
+                    worksheets = []
                 if not worksheets:
                     st.error("No worksheets found in the target Excel file")
                 else:
@@ -231,9 +249,14 @@ with col2:
                     )
                     
                     # Read the selected worksheet
-                    target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
-                    st.session_state.target_df = target_df
-                    target_columns = target_df.columns.tolist()
+                    try:
+                        target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
+                        st.session_state.target_df = target_df
+                        target_columns = target_df.columns.tolist()
+                    except Exception as e:
+                        st.error(f"Error reading worksheet: {str(e)}")
+                        target_df = None
+                        target_columns = []
                     st.session_state.target_column = st.selectbox(
                         "Select Target Column",
                         options=target_columns
@@ -268,16 +291,26 @@ if st.button("Run Matching"):
             # Update matcher threshold
             st.session_state.matcher.threshold = threshold
             
-            # Perform matching
-            results = st.session_state.matcher.match_columns(
-                st.session_state.source_df,
-                st.session_state.target_df,
-                st.session_state.source_column,
-                st.session_state.target_column
-            )
+            try:
+                # Perform matching
+                results = st.session_state.matcher.match_columns(
+                    st.session_state.source_df,
+                    st.session_state.target_df,
+                    st.session_state.source_column,
+                    st.session_state.target_column
+                )
+            except Exception as e:
+                st.error(f"Error during matching process: {str(e)}")
+                st.error("Please ensure both source and target files are valid Excel files.")
+                return
             
-            # Format results
-            results_df = st.session_state.matcher.format_results_for_export(results)
+            try:
+                # Format results
+                results_df = st.session_state.matcher.format_results_for_export(results)
+            except Exception as e:
+                st.error(f"Error formatting results: {str(e)}")
+                st.error("There was an issue processing the matching results.")
+                return
             
             # Display results
             st.header("Matching Results")
