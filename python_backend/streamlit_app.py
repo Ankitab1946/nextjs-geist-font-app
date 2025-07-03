@@ -38,43 +38,6 @@ def get_table_columns(conn, table_name):
     df = pd.read_sql(query, conn)
     return df.columns.tolist()
 
-def save_results(results_df):
-    """Save results to Excel file and provide download link"""
-    try:
-        # Create a unique filename in the current directory
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"fuzzy_matching_results_{timestamp}.xlsx"
-        
-        # Write results to Excel file
-        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-            # Write main results
-            results_df.to_excel(writer, sheet_name='Matching Results', index=False)
-            
-            # Add summary sheet
-            summary_data = {
-                'Metric': [
-                    'Total Records Processed',
-                    'Successful Matches',
-                    'Source Mismatches',
-                    'Target Mismatches',
-                    'Average Confidence Score'
-                ],
-                'Value': [
-                    len(results_df),
-                    len(results_df[results_df['Type'] == 'Match']),
-                    len(results_df[results_df['Type'] == 'Source Mismatch']),
-                    len(results_df[results_df['Type'] == 'Target Mismatch']),
-                    f"{results_df['Confidence'].str.rstrip('%').astype(float).mean():.2f}%"
-                ]
-            }
-            pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
-        
-        return filename
-
-    except Exception as e:
-        st.error(f"An error occurred while saving the results: {str(e)}")
-        return None
-
 # Set page config
 st.set_page_config(
     page_title="Fuzzy Column Matcher",
@@ -140,7 +103,8 @@ with col1:
         if source_file:
             try:
                 # Get list of worksheets
-                excel_file = pd.ExcelFile(source_file)
+                source_bytes = source_file.getvalue()
+                excel_file = pd.ExcelFile(pd.io.common.BytesIO(source_bytes))
                 worksheets = excel_file.sheet_names
                 if not worksheets:
                     st.error("No worksheets found in the source Excel file")
@@ -156,8 +120,9 @@ with col1:
                     
                     # Read the selected worksheet
                     try:
-                        source_df = pd.read_excel(source_file, sheet_name=selected_worksheet)
+                        source_df = pd.read_excel(pd.io.common.BytesIO(source_bytes), sheet_name=selected_worksheet)
                         st.session_state.source_df = source_df
+                        st.session_state.source_bytes = source_bytes  # Store bytes for later use
                         source_columns = source_df.columns.tolist()
                         st.session_state.source_column = st.selectbox(
                             "Select Source Column",
@@ -201,10 +166,9 @@ with col2:
     
     if target_type == "Same Excel File" and source_file:
         # Use the same Excel file as source
-        target_file = source_file
         try:
             # Get list of worksheets (excluding the source worksheet)
-            excel_file = pd.ExcelFile(target_file)
+            excel_file = pd.ExcelFile(pd.io.common.BytesIO(st.session_state.source_bytes))
             worksheets = [ws for ws in excel_file.sheet_names if ws != st.session_state.get('source_worksheet')]
             if not worksheets:
                 st.error("No additional worksheets found in the Excel file")
@@ -220,7 +184,7 @@ with col2:
                 
                 # Read the selected worksheet
                 try:
-                    target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
+                    target_df = pd.read_excel(pd.io.common.BytesIO(st.session_state.source_bytes), sheet_name=selected_worksheet)
                     st.session_state.target_df = target_df
                     target_columns = target_df.columns.tolist()
                     st.session_state.target_column = st.selectbox(
@@ -241,7 +205,8 @@ with col2:
         if target_file:
             try:
                 # Get list of worksheets
-                excel_file = pd.ExcelFile(target_file)
+                target_bytes = target_file.getvalue()
+                excel_file = pd.ExcelFile(pd.io.common.BytesIO(target_bytes))
                 worksheets = excel_file.sheet_names
                 if not worksheets:
                     st.error("No worksheets found in the target Excel file")
@@ -257,8 +222,9 @@ with col2:
                     
                     # Read the selected worksheet
                     try:
-                        target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
+                        target_df = pd.read_excel(pd.io.common.BytesIO(target_bytes), sheet_name=selected_worksheet)
                         st.session_state.target_df = target_df
+                        st.session_state.target_bytes = target_bytes  # Store bytes for later use
                         target_columns = target_df.columns.tolist()
                         st.session_state.target_column = st.selectbox(
                             "Select Target Column",
@@ -346,27 +312,42 @@ if st.button("Run Matching"):
                 # Display detailed results
                 st.dataframe(results_df)
                 
-                # Save and provide download link
-                filename = save_results(results_df)
-                
-                if filename:
-                    try:
-                        with open(filename, "rb") as file:
-                            st.download_button(
-                                label="Download Results",
-                                data=file,
-                                file_name=f"fuzzy_matching_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
-                    except Exception as e:
-                        st.error(f"Could not prepare the download: {str(e)}")
-                    finally:
-                        try:
-                            os.remove(filename)
-                        except Exception as cleanup_err:
-                            st.error(f"Error cleaning up temporary file: {str(cleanup_err)}")
-                else:
-                    st.error("Results file could not be generated. Please try again.")
+                # Save results to BytesIO
+                try:
+                    output = pd.io.common.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        # Write main results
+                        results_df.to_excel(writer, sheet_name='Matching Results', index=False)
+                        
+                        # Add summary sheet
+                        summary_data = {
+                            'Metric': [
+                                'Total Records Processed',
+                                'Successful Matches',
+                                'Source Mismatches',
+                                'Target Mismatches',
+                                'Average Confidence Score'
+                            ],
+                            'Value': [
+                                len(results_df),
+                                len(results_df[results_df['Type'] == 'Match']),
+                                len(results_df[results_df['Type'] == 'Source Mismatch']),
+                                len(results_df[results_df['Type'] == 'Target Mismatch']),
+                                f"{results_df['Confidence'].str.rstrip('%').astype(float).mean():.2f}%"
+                            ]
+                        }
+                        pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
+                    
+                    excel_data = output.getvalue()
+                    
+                    st.download_button(
+                        label="Download Results",
+                        data=excel_data,
+                        file_name=f"fuzzy_matching_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                except Exception as e:
+                    st.error(f"Could not prepare the download: {str(e)}")
     else:
         st.error("Please select both source and target data before running the matching process.")
 
