@@ -85,21 +85,6 @@ st.set_page_config(
 if 'matcher' not in st.session_state:
     st.session_state.matcher = FuzzyMatcher()
 
-# Title and description
-st.title("🔍 Fuzzy Column Matcher")
-st.markdown("""
-This tool helps you match columns between Excel files and SQL Server tables using fuzzy logic.
-It supports:
-- Matching between different Excel files
-- Matching between worksheets in the same Excel file
-- Matching between Excel files and SQL Server tables
-- Synonym-based matching
-- Detailed matching results with confidence levels
-""")
-
-if source_type == "Excel File":
-    st.info("💡 Tip: To match columns between worksheets in the same Excel file, select 'Same Excel File' as the Target Type after uploading your source Excel file.")
-
 # Sidebar for configuration
 with st.sidebar:
     st.header("Configuration")
@@ -124,6 +109,21 @@ with st.sidebar:
         value=70,
         help="Minimum confidence score required for a match"
     )
+
+# Title and description
+st.title("🔍 Fuzzy Column Matcher")
+st.markdown("""
+This tool helps you match columns between Excel files and SQL Server tables using fuzzy logic.
+It supports:
+- Matching between different Excel files
+- Matching between worksheets in the same Excel file
+- Matching between Excel files and SQL Server tables
+- Synonym-based matching
+- Detailed matching results with confidence levels
+""")
+
+if source_type == "Excel File":
+    st.info("💡 Tip: To match columns between worksheets in the same Excel file, select 'Same Excel File' as the Target Type after uploading your source Excel file.")
 
 # Main content area
 col1, col2 = st.columns(2)
