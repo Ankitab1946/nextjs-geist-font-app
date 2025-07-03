@@ -7,6 +7,8 @@ import tempfile
 import zipfile
 from datetime import datetime
 
+
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from python_backend.fuzzy_matcher import FuzzyMatcher
 
@@ -120,14 +122,36 @@ with col1:
                     
                     # Read the selected worksheet
                     try:
-                        source_df = pd.read_excel(pd.io.common.BytesIO(source_bytes), sheet_name=selected_worksheet)
-                        st.session_state.source_df = source_df
-                        st.session_state.source_bytes = source_bytes  # Store bytes for later use
-                        source_columns = source_df.columns.tolist()
-                        st.session_state.source_column = st.selectbox(
-                            "Select Source Column",
-                            options=source_columns
-                        )
+                        # Create DataFrame from the selected worksheet
+                        df = pd.read_excel(pd.io.common.BytesIO(source_bytes), sheet_name=selected_worksheet)
+                        
+                        # Validate DataFrame
+                        if df is None or df.empty:
+                            st.error("Selected worksheet appears to be empty")
+                            source_df = None
+                            source_columns = []
+                        else:
+                            # Convert to proper DataFrame if needed
+                            if not isinstance(df, pd.DataFrame):
+                                df = pd.DataFrame(df)
+                            
+                            # Store in session state
+                            source_df = df.copy()
+                            st.session_state.source_df = source_df
+                            source_columns = source_df.columns.tolist()
+                            st.write("Source worksheet loaded successfully")
+                            st.write(f"Available columns: {source_columns}")
+                            
+                            # Only show column selector if we have columns
+                            if source_columns:
+                                st.session_state.source_column = st.selectbox(
+                                    "Select Source Column",
+                                    options=source_columns
+                                )
+                    except pd.errors.EmptyDataError:
+                        st.error("The selected worksheet is empty")
+                        source_df = None
+                        source_columns = []
                     except Exception as e:
                         st.error(f"Error reading worksheet: {str(e)}")
                         source_df = None
@@ -184,13 +208,36 @@ with col2:
                 
                 # Read the selected worksheet
                 try:
-                    target_df = pd.read_excel(pd.io.common.BytesIO(st.session_state.source_bytes), sheet_name=selected_worksheet)
-                    st.session_state.target_df = target_df
-                    target_columns = target_df.columns.tolist()
-                    st.session_state.target_column = st.selectbox(
-                        "Select Target Column",
-                        options=target_columns
-                    )
+                    # Create DataFrame from the selected worksheet
+                    df = pd.read_excel(pd.io.common.BytesIO(st.session_state.source_bytes), sheet_name=selected_worksheet)
+                    
+                    # Validate DataFrame
+                    if df is None or df.empty:
+                        st.error("Selected worksheet appears to be empty")
+                        target_df = None
+                        target_columns = []
+                    else:
+                        # Convert to proper DataFrame if needed
+                        if not isinstance(df, pd.DataFrame):
+                            df = pd.DataFrame(df)
+                        
+                        # Store in session state
+                        target_df = df.copy()
+                        st.session_state.target_df = target_df
+                        target_columns = target_df.columns.tolist()
+                        st.write("Target worksheet loaded successfully")
+                        st.write(f"Available columns: {target_columns}")
+                        
+                        # Only show column selector if we have columns
+                        if target_columns:
+                            st.session_state.target_column = st.selectbox(
+                                "Select Target Column",
+                                options=target_columns
+                            )
+                except pd.errors.EmptyDataError:
+                    st.error("The selected worksheet is empty")
+                    target_df = None
+                    target_columns = []
                 except Exception as e:
                     st.error(f"Error reading worksheet: {str(e)}")
                     target_df = None
@@ -222,14 +269,32 @@ with col2:
                     
                     # Read the selected worksheet
                     try:
-                        target_df = pd.read_excel(pd.io.common.BytesIO(target_bytes), sheet_name=selected_worksheet)
-                        st.session_state.target_df = target_df
-                        st.session_state.target_bytes = target_bytes  # Store bytes for later use
-                        target_columns = target_df.columns.tolist()
-                        st.session_state.target_column = st.selectbox(
-                            "Select Target Column",
-                            options=target_columns
-                        )
+                        # Create DataFrame from the selected worksheet
+                        df = pd.read_excel(pd.io.common.BytesIO(target_bytes), sheet_name=selected_worksheet)
+                        
+                        # Validate DataFrame
+                        if df is None or df.empty:
+                            st.error("Selected worksheet appears to be empty")
+                            target_df = None
+                            target_columns = []
+                        else:
+                            # Convert to proper DataFrame if needed
+                            if not isinstance(df, pd.DataFrame):
+                                df = pd.DataFrame(df)
+                            
+                            # Store in session state
+                            target_df = df.copy()
+                            st.session_state.target_df = target_df
+                            target_columns = target_df.columns.tolist()
+                            st.write("Target worksheet loaded successfully")
+                            st.write(f"Available columns: {target_columns}")
+                            
+                            # Only show column selector if we have columns
+                            if target_columns:
+                                st.session_state.target_column = st.selectbox(
+                                    "Select Target Column",
+                                    options=target_columns
+                                )
                     except Exception as e:
                         st.error(f"Error reading worksheet: {str(e)}")
                         target_df = None
@@ -275,25 +340,87 @@ if st.button("Run Matching"):
             results_df = None
 
             try:
-                # Perform matching
-                results = st.session_state.matcher.match_columns(
-                    st.session_state.source_df,
-                    st.session_state.target_df,
-                    st.session_state.source_column,
-                    st.session_state.target_column
-                )
+                # Get DataFrames from session state
+                source_df = st.session_state.source_df
+                target_df = st.session_state.target_df
+
+                # Debug information
+                st.write("Validating DataFrames...")
+                
+                # Validate source DataFrame
+                if not isinstance(source_df, pd.DataFrame):
+                    raise ValueError("Source data is not a valid DataFrame")
+                if source_df.empty:
+                    raise ValueError("Source DataFrame is empty")
+                if not hasattr(st.session_state, 'source_column'):
+                    raise ValueError("Source column not selected")
+                if st.session_state.source_column not in source_df.columns:
+                    raise ValueError(f"Source column '{st.session_state.source_column}' not found")
+                
+                st.write("Source DataFrame validated successfully")
+                st.write(f"Shape: {source_df.shape}")
+                st.write(f"Selected column: {st.session_state.source_column}")
+                
+                # Validate target DataFrame
+                if not isinstance(target_df, pd.DataFrame):
+                    raise ValueError("Target data is not a valid DataFrame")
+                if target_df.empty:
+                    raise ValueError("Target DataFrame is empty")
+                if not hasattr(st.session_state, 'target_column'):
+                    raise ValueError("Target column not selected")
+                if st.session_state.target_column not in target_df.columns:
+                    raise ValueError(f"Target column '{st.session_state.target_column}' not found")
+                
+                st.write("Target DataFrame validated successfully")
+                st.write(f"Shape: {target_df.shape}")
+                st.write(f"Selected column: {st.session_state.target_column}")
+                
+                st.write("\nStarting matching process...")
+                # Create fresh copies to avoid modifying originals
+                source_copy = source_df.copy()
+                target_copy = target_df.copy()
+                
+                try:
+                    # Perform matching
+                    st.write("Running matching algorithm...")
+                    results = st.session_state.matcher.match_columns(
+                        source_copy,
+                        target_copy,
+                        st.session_state.source_column,
+                        st.session_state.target_column
+                    )
+                    st.write("✅ Matching process completed successfully")
+                except Exception as e:
+                    st.error(f"Error during matching: {str(e)}")
+                    st.error("Please ensure your data is in the correct format")
+                    success = False
+            except ValueError as ve:
+                st.error(f"Validation Error: {str(ve)}")
+                success = False
+            except pd.errors.EmptyDataError:
+                st.error("One or both DataFrames are empty. Please check your data.")
+                success = False
             except Exception as e:
-                st.error(f"Error during matching process: {str(e)}")
-                st.error("Please ensure both source and target files are valid Excel files.")
+                st.error(f"Unexpected error: {str(e)}")
+                st.error("Please ensure your data is valid and try again.")
                 success = False
 
             if success and results is not None:
                 try:
+                    st.write("Formatting results...")
                     # Format results
                     results_df = st.session_state.matcher.format_results_for_export(results)
+                    if results_df.empty:
+                        st.warning("No matches found between the selected columns")
+                        success = False
+                    else:
+                        st.write("✅ Results formatted successfully")
+                except pd.errors.EmptyDataError:
+                    st.error("No data to format. The matching process returned empty results.")
+                    success = False
                 except Exception as e:
                     st.error(f"Error formatting results: {str(e)}")
-                    st.error("There was an issue processing the matching results.")
+                    st.error("There was an issue processing the matching results. Please check your data.")
                     success = False
 
             if success and results_df is not None:
@@ -312,15 +439,19 @@ if st.button("Run Matching"):
                 # Display detailed results
                 st.dataframe(results_df)
                 
-                # Save results to BytesIO
+                # Prepare results for download
                 try:
+                    st.write("Preparing download file...")
+                    # Create BytesIO object
                     output = pd.io.common.BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    
+                    # Write to BytesIO buffer
+                    with pd.ExcelWriter(output, engine='openpyxl', mode='w') as writer:
                         # Write main results
                         results_df.to_excel(writer, sheet_name='Matching Results', index=False)
                         
-                        # Add summary sheet
-                        summary_data = {
+                        # Create summary data
+                        summary_data = pd.DataFrame({
                             'Metric': [
                                 'Total Records Processed',
                                 'Successful Matches',
@@ -335,19 +466,26 @@ if st.button("Run Matching"):
                                 len(results_df[results_df['Type'] == 'Target Mismatch']),
                                 f"{results_df['Confidence'].str.rstrip('%').astype(float).mean():.2f}%"
                             ]
-                        }
-                        pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
+                        })
+                        
+                        # Write summary sheet
+                        summary_data.to_excel(writer, sheet_name='Summary', index=False)
                     
+                    # Get the value of the BytesIO buffer
                     excel_data = output.getvalue()
                     
+                    st.write("File prepared successfully. Ready for download.")
+                    # Create download button
                     st.download_button(
-                        label="Download Results",
+                        label="📥 Download Results",
                         data=excel_data,
                         file_name=f"fuzzy_matching_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        help="Download the matching results as an Excel file"
                     )
                 except Exception as e:
                     st.error(f"Could not prepare the download: {str(e)}")
+                    st.error("Please try the matching process again.")
     else:
         st.error("Please select both source and target data before running the matching process.")
 
