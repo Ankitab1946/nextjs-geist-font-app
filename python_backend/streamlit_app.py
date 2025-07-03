@@ -131,41 +131,36 @@ col1, col2 = st.columns(2)
 # Source Data Selection
 with col1:
     st.header("Source Data")
+    source_df = None
+    source_columns = []
     
     if source_type == "Excel File":
         source_file = st.file_uploader("Upload Source Excel File", type=['xlsx', 'xls'])
         if source_file:
             try:
                 # Get list of worksheets
-                try:
-                    excel_file = pd.ExcelFile(source_file)
-                    worksheets = excel_file.sheet_names
-                    if not worksheets:  # If no worksheets found
-                        st.error("No worksheets found in the source Excel file")
-                        return
-                except Exception as e:
-                    st.error(f"Error reading worksheets from source Excel file: {str(e)}")
-                    return
-                
-                # Let user select worksheet
-                selected_worksheet = st.selectbox(
-                    "Select Source Worksheet",
-                    options=worksheets,
-                    key="source_worksheet"
-                )
-                
-                # Read the selected worksheet
-                source_df = pd.read_excel(source_file, sheet_name=selected_worksheet)
-                st.session_state.source_df = source_df
-                source_columns = source_df.columns.tolist()
-                st.session_state.source_column = st.selectbox(
-                    "Select Source Column",
-                    options=source_columns
-                )
+                excel_file = pd.ExcelFile(source_file)
+                worksheets = excel_file.sheet_names
+                if not worksheets:
+                    st.error("No worksheets found in the source Excel file")
+                else:
+                    # Let user select worksheet
+                    selected_worksheet = st.selectbox(
+                        "Select Source Worksheet",
+                        options=worksheets,
+                        key="source_worksheet"
+                    )
+                    
+                    # Read the selected worksheet
+                    source_df = pd.read_excel(source_file, sheet_name=selected_worksheet)
+                    st.session_state.source_df = source_df
+                    source_columns = source_df.columns.tolist()
+                    st.session_state.source_column = st.selectbox(
+                        "Select Source Column",
+                        options=source_columns
+                    )
             except Exception as e:
                 st.error(f"Error reading source Excel file: {str(e)}")
-                source_df = None
-                source_columns = []
     else:  # SQL Server
         st.session_state.server = st.text_input("SQL Server Name")
         st.session_state.database = st.text_input("Database Name")
@@ -187,6 +182,8 @@ with col1:
 # Target Data Selection
 with col2:
     st.header("Target Data")
+    target_df = None
+    target_columns = []
     
     if target_type == "Same Excel File" and source_file:
         # Use the same Excel file as source
@@ -197,42 +194,7 @@ with col2:
             worksheets = [ws for ws in excel_file.sheet_names if ws != st.session_state.get('source_worksheet')]
             if not worksheets:
                 st.error("No additional worksheets found in the Excel file")
-                return
-            
-            # Let user select worksheet
-            selected_worksheet = st.selectbox(
-                "Select Target Worksheet",
-                options=worksheets,
-                key="target_worksheet"
-            )
-            
-            # Read the selected worksheet
-            target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
-            st.session_state.target_df = target_df
-            target_columns = target_df.columns.tolist()
-            st.session_state.target_column = st.selectbox(
-                "Select Target Column",
-                options=target_columns
-            )
-        except Exception as e:
-            st.error(f"Error reading target worksheet: {str(e)}")
-            target_df = None
-            target_columns = []
-    elif target_type == "Excel File":
-        target_file = st.file_uploader("Upload Target Excel File", type=['xlsx', 'xls'])
-        if target_file:
-            try:
-                # Get list of worksheets
-                try:
-                    excel_file = pd.ExcelFile(target_file)
-                    worksheets = excel_file.sheet_names
-                    if not worksheets:  # If no worksheets found
-                        st.error("No worksheets found in the target Excel file")
-                        return
-                except Exception as e:
-                    st.error(f"Error reading worksheets from target Excel file: {str(e)}")
-                    return
-                
+            else:
                 # Let user select worksheet
                 selected_worksheet = st.selectbox(
                     "Select Target Worksheet",
@@ -248,10 +210,37 @@ with col2:
                     "Select Target Column",
                     options=target_columns
                 )
+        except Exception as e:
+            st.error(f"Error reading target worksheet: {str(e)}")
+    
+    elif target_type == "Excel File":
+        target_file = st.file_uploader("Upload Target Excel File", type=['xlsx', 'xls'])
+        if target_file:
+            try:
+                # Get list of worksheets
+                excel_file = pd.ExcelFile(target_file)
+                worksheets = excel_file.sheet_names
+                if not worksheets:
+                    st.error("No worksheets found in the target Excel file")
+                else:
+                    # Let user select worksheet
+                    selected_worksheet = st.selectbox(
+                        "Select Target Worksheet",
+                        options=worksheets,
+                        key="target_worksheet"
+                    )
+                    
+                    # Read the selected worksheet
+                    target_df = pd.read_excel(target_file, sheet_name=selected_worksheet)
+                    st.session_state.target_df = target_df
+                    target_columns = target_df.columns.tolist()
+                    st.session_state.target_column = st.selectbox(
+                        "Select Target Column",
+                        options=target_columns
+                    )
             except Exception as e:
                 st.error(f"Error reading target Excel file: {str(e)}")
-                target_df = None
-                target_columns = []
+    
     else:  # SQL Server
         if 'server' not in st.session_state:
             st.session_state.server = st.text_input("SQL Server Name ", key="target_server")
